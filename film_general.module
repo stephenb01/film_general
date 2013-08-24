@@ -1,0 +1,1639 @@
+<?PHP
+
+
+/**
+ * @file
+ * This holds the specific functions for film_general website.
+ */
+
+
+function film_general_menu() {
+
+  $items = array();
+  $items['node/%node/people'] = array(
+    'title' => 'Add / edit people',
+    'description' => 'Add people',
+    'page callback' => 'film_general_add_film_page_callback',
+    'page arguments' => array(1),
+    'type' => MENU_LOCAL_TASK,
+    'access callback' => 'film_general_add_people_access_check',
+    'access arguments' => array(1),      
+  );  
+  
+  $items['node/%node/films'] = array(
+    'title' => 'Films',
+    'description' => 'Add films',
+    'page callback' => 'film_general_add_person_to_film_page_callback',
+    'page arguments' => array(1),
+    'type' => MENU_LOCAL_TASK,
+    'access callback' => 'film_general_add_film_access_check',
+    'access arguments' => array(1),
+  );       
+
+
+  $items['film-search/autocomplete'] = array(
+    'page callback' => '_film_general_film_autocomplete',
+    'access callback' => true , //array('access example autocomplete'),
+    'type' => MENU_CALLBACK
+  );
+
+  $items['person-search/autocomplete'] = array(
+    'page callback' => '_film_general_person_autocomplete',
+    'access callback' => TRUE, //array('access example autocomplete'),
+    'type' => MENU_CALLBACK
+  ); 
+  
+  return $items;
+}
+
+
+function film_general_form_alter(&$form, $form_state, $form_id) {
+  //watchdog('film_general_form_alter','Form ID: %form_id', array('%form_id' => $form_id));
+  // we need to select the forms we want to alter
+
+//$var['field_film_link'][LANGUAGE_NONE][0]['target_id']['#default_value']
+  switch ($form_id) {
+    case 'review_node_form':
+      if (!empty($_GET['nid'])) {
+        $node = node_load($_GET['nid']);
+        $form['field_link'][LANGUAGE_NONE][0]['target_id']['#default_value'] = 
+            $node->title . ' (' . $node->nid . ')';
+      }
+      array_unshift($form['#validate'], 'film_general_review_node_validate');      
+      $form['actions']['submit']['#submit'][] = 'film_general_review_node_submit';
+
+      break;
+      
+    case 'image_node_form':
+
+      if (!empty($_GET['nid'])) {
+        $node = node_load($_GET['nid']);
+        $form['field_link'][LANGUAGE_NONE][0]['target_id']['#default_value'] = 
+            $node->title . ' (' . $node->nid . ')';
+      }
+      array_unshift($form['#validate'], 'film_general_image_node_validate');      
+      $form['actions']['submit']['#submit'][] = 'film_general_image_node_submit';
+
+      break;
+      
+    case 'article_node_form':
+      if (!empty($_GET['nid'])) {
+        $node = node_load($_GET['nid']);
+        $form['field_link'][LANGUAGE_NONE][0]['target_id']['#default_value'] = 
+            $node->title . ' (' . $node->nid . ')';
+      }
+      array_unshift($form['#validate'], 'film_general_article_node_validate');      
+      $form['actions']['submit']['#submit'][] = 'film_general_article_node_submit';
+
+      break;      
+    case 'people_node_form':
+//      dpm($form);
+//      dpm($form_state);
+      $film_node_id = '';
+      $type = '';
+      $person_name = '';
+      
+      $form['title']['#default_value'] = 'Unknown';
+      if (!empty($_SESSION['create_person'])) {
+        if (!empty($_SESSION['create_person']['person_name']))
+          $person_name = $_SESSION['create_person']['person_name'];
+        
+        if (!empty($_SESSION['create_person']['film_node_id']))
+          $film_node_id = $_SESSION['create_person']['film_node_id'];
+        
+        if (!empty($_SESSION['create_person']['role_id']))
+          $role_id =  $_SESSION['create_person']['role_id'];
+
+        if (!empty($_SESSION['create_person']['sub_role_id']))
+          $sub_role_id =  $_SESSION['create_person']['sub_role_id'];
+
+        if (!empty($_SESSION['create_person']['sub_role_id']))
+          $character =  $_SESSION['create_person']['character'];
+
+        unset($_SESSION['create_person']);
+        
+        $parts = explode(' ',$person_name,2);
+
+        if (!empty($parts[0]))
+          $form['field_forename'][LANGUAGE_NONE][0]['value']['#default_value'] = $parts[0];
+        
+        if (!empty($parts[1]))
+          $form['field_surname'][LANGUAGE_NONE][0]['value']['#default_value'] = $parts[1];
+      } else {
+        if (!empty($form_state['input']['film_id']))
+          $film_node_id = $form_state['input']['film_id'];
+        else
+          $film_node_id = '';
+        
+        if (!empty($form_state['input']['role_id']))
+            $role_id = $form_state['input']['role_id'];
+        else
+          $role_id = '';
+        
+        if (!empty($form_state['input']['sub_role_id']))
+            $sub_role_id = $form_state['input']['sub_role_id'];
+        else
+          $sub_role_id = '';
+        
+        if (!empty($form_state['input']['character']))
+            $character= $form_state['input']['character'];
+        else
+          $character = '';          
+      }
+      
+      $form['film_id'] = array(
+        '#type' => 'hidden',
+        '#value' => $film_node_id,  
+      );
+
+      $form['role_id'] = array(
+        '#type' => 'hidden',
+        '#value' => $role_id,  
+      );
+
+      $form['sub_role_id'] = array(
+        '#type' => 'hidden',
+        '#value' => $sub_role_id,  
+      );
+
+      $form['character'] = array(
+        '#type' => 'hidden',
+        '#value' => $character,  
+      );
+
+      array_unshift($form['#validate'], 'film_general_person_node_validate');
+      $form['actions']['submit']['#submit'][] = 'film_general_person_node_submit';
+
+      break;
+    
+	case 'film_node_form':
+//            $_SESSION['new_film_data'] = array(
+//          'person_node_id' => $form_state['values']['person_node_id'],
+//          'film_name' => $form_state['values']['film'],
+//          'type' => $form_state['values']['type'],
+    if (!empty($_SESSION['new_film_data'])) {
+      //dpm($_SESSION['new_film_data']);
+      if (!empty($_SESSION['new_film_data']['title'])) {
+        $form['title']['#default_value'] = $_SESSION['new_film_data']['title'];
+      }
+      
+      if (!empty($_SESSION['new_film_data']['year'])) {
+        $language = $form['field_year']['#language'];
+        $form['field_year'][$language][0]['value']['#default_value'] =
+           $_SESSION['new_film_data']['year'];
+      }  
+      
+      if (!empty($_SESSION['new_film_data']['person_node_id'])) {
+        $form['person_node_id'] = array(
+            '#type' => 'hidden',
+            '#value' => $_SESSION['new_film_data']['person_node_id'],
+        );
+      }
+      
+      if (!empty($_SESSION['new_film_data']['type'])) {
+        $form['person_type'] = array(
+            '#type' => 'hidden',
+            '#value' => $_SESSION['new_film_data']['type'],
+        );
+      }
+    
+      // Once we have used the data we need to clear it so we don't use it again
+      $_SESSION['new_film_data'] = '';
+    }
+
+//    $form['field_int_ref'][LANGUAGE_NONE][0]['value']['#default_value'] = time();
+    // Now we add in a submit routine so we can record the date the item 
+    // is goign to be published and unpublished
+   
+    $form['actions']['submit']['#submit'][] = 'film_general_film_submit';
+   // $form['#redirect'] = 'search-people'; 
+	  break; 
+  }
+}
+
+function film_general_film_submit($form, &$form_state) {
+  dpm($form_state);
+//  $_SESSION['new_film'] = array(
+//      'nid' => -1,
+//      'title' => $form_state['values']['title'],
+//      'year' => $form_state['values']['field_year']['und'][0]['value'],
+//  );
+  $form_state['complete form']['redirect'] = 'search-tips';
+  if(!empty($form_state['values']['person_node_id']))  {
+    $_SESSION['new_film'] = array(
+        'person_type' => $form_state['values']['person_type'],
+        'person_node_id' => $form_state['values']['person_node_id'],
+        'title' => $form_state['values']['title'],
+//        'int_ref' => $form_state['values']['field_int_ref'][LANGUAGE_NONE][0]['value'],
+    );    
+    $form_state['redirect'] = 'node/'.$form_state['values']['person_node_id'].'/films';
+  }
+  dpm($form_state);
+}
+
+
+function film_general_add_people_access_check($node = NULL) {
+  //watchdog('_moderation_tab_node_access_draft','Routine called');
+  if ($node->type == 'film')
+    return true;
+  else
+    return false;
+}
+
+function film_general_add_film_access_check($node = NULL) {
+  //watchdog('_moderation_tab_node_access_draft','Routine called');
+  if ($node->type == 'people')
+    return true;
+  else
+    return false;
+}
+
+function film_general_add_people_page_callback($node) {
+  //watchdog('_split_siblings','Routine called');
+
+//  $language = $node->language;
+// 
+//	$message  = 'You can add people here and see them as well. ';
+//  
+//  $people_form = drupal_get_form('film_general_people_form',$node);
+//
+//  $film_form = drupal_get_form('film_general_film_search_form');
+//  $output = array(
+//    t('Split Instructions')  => array(
+//      '#markup' => t($message),
+//      ), 
+//	
+//    'form' => array(
+//      '#type' => 'item',
+//      '#markup' => drupal_render($people_form),
+//    ), 
+//      
+//    'form_film' => array(
+//      '#type' => 'item',
+//      '#markup' => drupal_render($film_form),
+//    ),       
+//	
+//  );
+//  
+  // Add a list of people here who have already been added to the film.
+  // 
+ // print render($render_array);  
+  
+    $output = array();
+    return film_general_manage_people_on_film($node->nid);
+}
+
+function film_general_add_film_page_callback($node) {
+    return film_general_manage_people_for_films($node->nid);
+}
+
+function film_general_add_person_to_film_page_callback($node) {
+  
+//      $_SESSION['new_film'] = array(
+//        'person_type' => -1,
+//        'title' => $form_state['values']['title'],
+//        'int_ref' => $form_state['values']['field_int_ref']['und'][0]['value'],
+//    ); 
+    // Some one has just added a film for this person
+//    if (!empty($_SESSION['new_film'])) {
+//      //dpm($_SESSION['new_film']);
+//      $type = $_SESSION['new_film']['person_type'];
+//      //film_general_add_person_to_film($film_node_id,$person_node_id,$type);
+//      //unset($_SESSION['new_film']);
+//    }
+
+    return film_general_manage_films_for_people($node->nid);
+}
+
+
+
+function film_general_people_form($form, &$form_state, $node, $destination = NULL) {
+  global $user;
+  $form = array();
+
+  $language = $node->language;
+
+  $form['field_node_nid'] = array(
+    '#type' => 'hidden',
+    '#value' => $node->nid,
+  );
+
+  $form['field_node_vid'] = array(
+    '#type' => 'hidden',
+    '#value' => $node->vid,
+  );
+
+  $form['action']['add_director'] = array(
+	'#type' => 'submit',
+	'#value' => t('Add director'),
+//	'#validate' => array('_split_children_validate'),
+//	'#submit' => array('_split_children_submit'),
+  );
+  
+  $form['action']['add_cast'] = array(
+	'#type' => 'submit',
+	'#value' => t('Add cast'),
+//	'#validate' => array('_split_children_validate'),
+//	'#submit' => array('_split_children_submit'),
+  );  
+  return $form;
+}
+
+
+function film_general_film_people_form($form, &$form_state, $node, $destination = NULL) {
+  global $user;
+  $form = array();
+  $role = array(3);
+  $output = film_links_get_links($node->nid,NULL,NULL,$role,TRUE);
+
+
+  $form['film_links'] = array(
+      '#markup' => drupal_render($output),
+  );
+   
+  $output = film_links_get_links(NULL,$node->nid,$role,NULL,TRUE);
+  // Need to check if we can add a delete button here.
+ 
+  $form['film_links_actors'] = array(
+      '#markup' => drupal_render($output),
+  );    
+
+//  foreach($output['table']['#rows'] as $key => $value) {
+//    dpm($value);
+//    $output['table']['#rows'][$key]['delete'] = 'test';
+//    $e = array(
+//          '#type' => 'submit',
+//          '#value' => t('Edit'),
+//         // '#attributes' => array('class' => array('person-edit')),
+//          '#submit' => array('film_general_film_people_form_submit'),
+//          //'#name' => 'edit-'.$personnel_type.'-nid-'.$node_person->nid.'-'.$node->nid,
+//        );
+//    $output['table']['#rows'][$key]['delete'] = drupal_render($e);    
+//  }
+//  $fields = array('crew','cast','director','music','writers','producers','editor','sound');
+//
+//  foreach($fields as $personnel_type) {
+//    $field = 'field_'.$personnel_type;
+//
+//    $form[$personnel_type] = array(
+//        '#type' => 'container',
+//        '#prefix' => '<div class="film-people-group film-people-group-'.$personnel_type.'">',
+//        '#suffix' => '</div>',
+//    );
+//    
+//    $form[$personnel_type]['title'] = array(
+//    '#markup' => t($personnel_type),  
+//      '#prefix' => '<h2>',
+//      '#suffix' => '</h2>',
+//    );
+//
+//    if(empty($node->$field)) {
+//      // No one has been assigned to this category
+//
+//      $form[$personnel_type]['person'] = array(
+//        '#markup' => t('Not found'),  
+//      );    
+//    } else {
+//      // We have people here
+//      $field_ref = &$node->$field;
+//      foreach($field_ref[LANGUAGE_NONE] as $key => $value) {
+//        $node_person = node_load($value['target_id']);
+//
+//        $form[$personnel_type][$key] = array(
+//          '#type' => 'container',
+//            '#prefix' => '<div class="person-'.$key.'">',
+//            '#suffix' => '</div>',
+//        );
+////        
+////        $form[$personnel_type][$key]['field_no'] = array(
+////          '#type' => 'hidden',
+////          '#value' => $node_person->nid,
+////        );
+//
+//        $path = drupal_get_path_alias("node/".$node_person->nid);
+//        $path = l($node_person->title,$path);
+//        $form[$personnel_type][$key]['person'] = array(
+//            '#markup' => $path,
+//            '#prefix' => '<label>',
+//            '#suffix' => '</label>',
+//        );
+//        $form[$personnel_type][$key]['action']['edit'] = array(
+//          '#type' => 'submit',
+//          '#value' => t('Edit'),
+//          '#attributes' => array('class' => array('person-edit')),
+//          '#submit' => array('film_general_film_people_form_submit'),
+//          '#name' => 'edit-'.$personnel_type.'-nid-'.$node_person->nid.'-'.$node->nid,
+//        );
+//
+//        $form[$personnel_type][$key]['action']['remove'] = array(
+//          '#type' => 'submit',
+//          '#value' => t('Remove'),
+//          '#attributes' => array('id' => array('nid-'.$node_person->nid), 'class' => array('person-remove')),
+//          '#submit' => array('film_general_film_people_form_submit'),
+//          '#name' => 'remove-'.$personnel_type.'-nid-'.$node_person->nid.'-'.$node->nid,
+//        );        
+//      }
+//    }
+//  }
+
+  return $form;
+}
+
+function film_general_people_film_form($form, &$form_state, $node, $destination = NULL) {
+  //global $user;
+
+  $form = array();
+  $role = array(3);
+  $output = film_links_get_links(NULL,$node->nid,NULL,$role,TRUE);
+  // Need to check if we can add a delete button here.
+ 
+  $form['film_links'] = array(
+      '#markup' => drupal_render($output),
+  );
+  
+  $output = film_links_get_links(NULL,$node->nid,$role,NULL,TRUE);
+  // Need to check if we can add a delete button here.
+ 
+  $form['film_links_actors'] = array(
+      '#markup' => drupal_render($output),
+  );  
+  // might need to add the following code to the table above.
+  /*
+          $form[$personnel_type][$key]['action']['remove'] = array(
+          '#type' => 'submit',
+          '#value' => t('Remove'),
+          '#attributes' => array('id' => array('nid-'.$value['nid']), 'class' => array('person-remove')),
+          '#submit' => array('film_general_people_film_form_submit'),
+          '#name' => 'remove-'.$personnel_type.'-nid-'.$value['nid'].'-'.$node->nid,
+        );  
+  */
+//  $fields = array('crew','cast','director','producers', 'music','writers','editor','sound');
+//
+//  foreach($fields as $personnel_type) {
+//    $field = 'field_'.$personnel_type;
+//
+//    $form[$personnel_type] = array(
+//        '#type' => 'container',
+//        '#prefix' => '<div class="film-people-group film-people-group-'.$personnel_type.'">',
+//        '#suffix' => '</div>',
+//    );
+//    
+//    $form[$personnel_type]['title'] = array(
+//    '#markup' => t($personnel_type),  
+//      '#prefix' => '<h2>',
+//      '#suffix' => '</h2>',
+//    );
+//
+//    $result = film_general_get_films_for_role($node->nid,$field);
+//    //dpm($result);
+//    if(empty($result)) {
+//      // No one has been assigned to this category
+//
+//      $form[$personnel_type]['person'] = array(
+//        '#markup' => t('Not found'),  
+//      );    
+//    } else {
+//      // We have films here
+////      $field_ref = &$node->$field;
+//      foreach($result as $key => $value) {
+//       // dpm($value);
+////        $node_person = node_load($value['target_id']);
+//
+//        $form[$personnel_type][$key] = array(
+//          '#type' => 'container',
+//            '#prefix' => '<div class="person-'.$key.'">',
+//            '#suffix' => '</div>',
+//        );
+//////        
+//////        $form[$personnel_type][$key]['field_no'] = array(
+//////          '#type' => 'hidden',
+//////          '#value' => $node_person->nid,
+//////        );
+////
+//        
+//        $path = drupal_get_path_alias("node/".$value['nid']);
+//        $path = l($value['title'],$path);
+//        $form[$personnel_type][$key]['film'] = array(
+//            '#markup' => $path,
+//            '#prefix' => '<label>',
+//            '#suffix' => '</label>',
+//        );
+//        
+//        $form[$personnel_type][$key]['action']['edit'] = array(
+//          '#type' => 'submit',
+//          '#value' => t('Edit'),
+//          '#attributes' => array('class' => array('person-edit')),
+//          '#submit' => array('film_general_people_film_form_submit'),
+//          '#name' => 'edit-'.$personnel_type.'-nid-'.$value['nid'].'-'.$node->nid,
+//        );
+//
+//        $form[$personnel_type][$key]['action']['remove'] = array(
+//          '#type' => 'submit',
+//          '#value' => t('Remove'),
+//          '#attributes' => array('id' => array('nid-'.$value['nid']), 'class' => array('person-remove')),
+//          '#submit' => array('film_general_people_film_form_submit'),
+//          '#name' => 'remove-'.$personnel_type.'-nid-'.$value['nid'].'-'.$node->nid,
+//        );        
+//      }
+//    }
+//  }
+
+  return $form;
+}
+
+function film_general_get_films_for_role($person_node_id, $field) {
+  //dpm($field);
+  $select = db_select('node','n');
+  $select->fields('n', array('nid','title'));
+  $select->join('field_data_'.$field,'f','n.nid = f.entity_id');
+  $select->condition('f.bundle', 'film','=');
+  $select->condition('f.'.$field.'_target_id',$person_node_id,'=');
+
+  $entries = $select->execute()->fetchAll(PDO::FETCH_ASSOC);
+  return $entries;
+}
+
+function film_general_film_people_form_submit($form, &$form_state) {
+//  watchdog('----------','---------');
+//dpm('rtrtrtrtr');
+//  switch($form_state['clicked_button']['#value']) {
+//    case 'Remove':
+//      $parts = explode('-',$form_state['clicked_button']['#name']);
+//
+//      $node_film = node_load($parts[4]);
+//      $field = 'field_'.$parts[1];
+//
+//      $item = &$node_film->$field;
+//      foreach($item[LANGUAGE_NONE] as $key => $value) {
+//        if ($value['target_id'] == $parts[3]) {
+//          dpm('Found item to delete');
+//          unset($item[LANGUAGE_NONE][$key]);
+//          break;
+//        }
+//      }
+//
+//      node_save($node_film);
+//      break;
+//    case 'Edit':
+//      $parts = explode('-',$form_state['clicked_button']['#name']);
+//      drupal_goto('node/'.$parts[3].'/edit');
+//      break;
+//  }
+}
+
+function film_general_people_film_form_submit($form, &$form_state) {
+
+  switch($form_state['clicked_button']['#value']) {
+    case 'Remove':
+      $parts = explode('-',$form_state['clicked_button']['#name']);
+
+      $node_film = node_load($parts[3]);
+      $field = 'field_'.$parts[1];
+
+      $item = &$node_film->$field;
+      foreach($item[LANGUAGE_NONE] as $key => $value) {
+        if ($value['target_id'] == $parts[4]) {
+          dpm('Found item to delete');
+          unset($item[LANGUAGE_NONE][$key]);
+          break;
+        }
+      }
+
+      node_save($node_film);
+      break;
+    case 'Edit':
+      $parts = explode('-',$form_state['clicked_button']['#name']);
+      drupal_goto('node/'.$parts[3].'/edit');
+      break;
+  }
+}
+
+function film_general_film_search_form() {
+  $form = array();
+ 
+  $form['films'] = array(
+    '#title' => t('Search films'),
+    '#type' => 'textfield',
+    '#autocomplete_path' => 'film-search/autocomplete',
+   );
+ 
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Search for film',
+//	'#validate' => array('_split_children_validate'),
+	'#submit' => array('film_general_film_search_submit'),   
+  );
+ 
+  return $form;
+}
+
+function film_general_person_search_form() {
+  $form = array();
+ 
+  $form['person'] = array(
+    '#title' => t('Search people'),
+    '#type' => 'textfield',
+    '#autocomplete_path' => 'person-search/autocomplete',
+   );
+ 
+  
+  
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Search for a person',
+    '#submit' => array('film_general_person_search_submit'),   
+  );
+ 
+  return $form;
+}
+
+function film_general_add_person_to_film_form($form, &$form_state,$node_id = NULL, $destination = NULL) {
+
+  $form = array();
+  
+  $form['person'] = array(
+   '#title' => t('Find person'),
+   '#type' => 'textfield',
+   '#required' => TRUE,      
+   '#autocomplete_path' => 'person-search/autocomplete',
+  );
+  
+  $form['role'] = array(
+      '#title' => t('Role'),
+      '#type' => 'textfield',
+      '#required' => TRUE,
+      '#autocomplete_path' => 'film-link/role-search/autocomplete',
+  );
+  // Need to load the current option list depending on the role specified
+
+//  if (!empty($form_state['input']['role'])) {
+//    $roles = _film_link_get_subroles($form_state['input']['role']);
+//    dpm($roles);
+//    $options['_none'] = '--';
+//    if (!empty($roles)) {
+//      foreach($roles as $key => $value) {
+//        $options[$key] = $value;
+//      }
+//    }
+//  } else {
+//    $options = array(
+//      '_none' => t('Select a role first')
+//   );
+//  }
+  
+//  $form['subrole'] = array(
+//      '#title' => t('Sub Role'),
+//      '#type' => 'select',
+//      '#options' => $options,  
+//  );
+  
+//  $form['new_subrole'] = array(
+//      '#title' => t('New sub role'),
+//      '#type' => 'textfield',
+//      '#size' => 60,
+//      '#maxlength' => 255,
+//      '#description' => t('Enter the new sub role here.'),
+//  );
+
+  $form['character'] = array(
+      '#title' => t('Character'),
+      '#type' => 'textfield',
+      '#size' => 60,
+      '#maxlength' => 255,
+  );
+
+ 
+  $form['node_id'] = array(
+    '#type' => 'hidden',
+    '#value' => $node_id,
+  );
+  
+  $form['action']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Add person to film',
+//	'#validate' => array('_split_children_validate'),
+	  '#submit' => array('film_general_person_to_film_search_submit'),   
+  );
+  
+//  $form['action']['cancel'] = array(
+//    '#type' => 'submit',
+//    '#attributes' => array('id' => array('cancel')),
+//    '#value' => 'Finish',
+////	'#validate' => array('_split_children_validate'),
+//	'#submit' => array('film_general_person_to_film_search_submit'),   
+//  );  
+
+  drupal_add_js(drupal_get_path('module', 'film_general') . '/js/general.js', 'file');
+  return $form;
+}
+
+// This form allows the user to select the role the person played in the film
+//  and the film itself.
+// node_id - is the ID of the person we are adding the film to.
+function film_general_add_film_to_person_form($form, &$form_state,$node_id = NULL, $destination = NULL) {
+  $form = array();
+  
+  
+  $form['film'] = array(
+    '#title' => t('Find film'),
+    '#type' => 'textfield',
+    '#required' => TRUE, 
+    '#autocomplete_path' => 'film-search/autocomplete',
+   );
+  
+  $form['role'] = array(
+      '#title' => t('Role'),
+      '#type' => 'textfield',
+      '#required' => TRUE, 
+      '#autocomplete_path' => 'film-link/role-search/autocomplete',
+  );
+  // Need to load the current option list depending on the role specified
+
+//  if (!empty($form_state['input']['role'])) {
+//    $roles = _film_link_get_subroles($form_state['input']['role']);
+//    dpm($roles);
+//    $options['_none'] = '--';
+//    if (!empty($roles)) {
+//      foreach($roles as $key => $value) {
+//        $options[$key] = $value;
+//      }
+//    }
+//  } else {
+//    $options = array(
+//       '_none' => t('Select a role first')
+//    );
+//  }
+  
+//  $form['subrole'] = array(
+//      '#title' => t('Sub Role'),
+//      '#type' => 'select',
+//      '#options' => $options,  
+//  );
+
+  $form['character'] = array(
+      '#title' => t('Character'),
+      '#type' => 'textfield',
+      '#size' => 60,
+      '#maxlength' => 255,
+  );
+ 
+  $form['person_node_id'] = array(
+    '#type' => 'hidden',
+    '#value' => $node_id,
+  );
+
+  if (!empty($form_state['input']['film_node_id']))
+    $film_node_id = $form_state['input']['film_node_id'];
+  else
+    $film_node_id = '';
+  
+  $form['film_node_id'] = array(
+    '#type' => 'hidden',
+    '#value' => $film_node_id,
+  );
+  
+  $form['action']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Add person to film',
+//	'#validate' => array('_split_children_validate'),
+   	'#submit' => array('film_general_film_to_person_search_submit'),   
+  );
+  
+//  $form['action']['cancel'] = array(
+//    '#type' => 'submit',
+//    '#attributes' => array('id' => array('cancel')),
+//    '#value' => 'Finish',
+////	'#validate' => array('_split_children_validate'),
+//  	'#submit' => array('film_general_film_to_person_search_submit'),   
+//  );  
+
+  return $form;
+}
+
+
+function film_general_film_search_submit($form, &$form_state) {
+
+  // Need to split the film and search for it again to see if it already exists
+  // if it does then we need to display it
+
+  $matches = array();
+
+  if (!empty($form_state['values']['films'])) {
+    $title = '';
+    $year = '';
+    preg_match('/\([0-9]{4}\)$/m',$form_state['values']['films'],$matches);
+    if ($matches) {
+      $year = substr($matches[0],1,4);
+      // Now get the title of the film.
+      // As we have the year we can find the title just by removing the year
+      $title = trim(substr($form_state['values']['films'],0,-6));
+
+      // Now locate the film
+      $query = db_select('node', 'n');
+
+      // Select rows that match the string
+
+      $query->fields('n', array('nid'));
+      $query->join('field_data_field_year','y','y.entity_id=n.nid');
+      $query->condition('n.type','film','=');
+      $query->condition('n.title', $title, '=');
+      $query->condition('y.field_year_value',$year,'=');
+      $query->range(0, 1);
+
+      $return = $query->execute(); 
+      $node_id = '';
+      foreach ($return as $row) {
+        $node_id = $row->nid;
+      }
+      
+    } else { 
+      // No year can be found, so it must be the whole title
+      // Now get the node id of hte film and display it
+      $title = trim($form_state['values']['films']);
+      
+      // Now locate the film
+      $query = db_select('node', 'n');
+
+      // Select rows that match the string
+
+      $query->fields('n', array('nid'));
+      $query->condition('n.type','film','=');
+      $query->condition('n.title', $title, '=');
+      $query->range(0, 1);
+
+      $return = $query->execute(); 
+      $node_id = '';
+      foreach ($return as $row) {
+        $node_id = $row->nid;
+      }      
+    }
+    
+    if (!empty($node_id)) {
+      // WE have located the film they are searching on
+      $form_state['redirect'] = 'node/' . $node_id;
+      //drupal_goto('node/'.$node_id);
+    } else {
+      $data = array('title' => $title, 'year' => $year);
+      $_SESSION['new_film_data'] = $data;
+      drupal_set_message(t('The film requested is not in our system. Would you like to add it now.'),'warning');
+      $form_state['redirect'] = 'node/add/film';
+      //drupal_goto('node/add/film');
+    }    
+  }
+}
+function film_general_person_search_submit($form, &$form_state) {
+
+  // Need to split the film and search for it again to see if it already exists
+  // if it does then we need to display it
+
+  $matches = array();
+
+  if (!empty($form_state['values']['person'])) {
+//    $title = '';
+//    $year = '';
+    preg_match('/\([0-9]+\)$/m',$form_state['values']['person'],$matches);
+    if ($matches) {
+      $node_id = substr($matches[0],1,strlen($matches[0])-2);
+    } else { 
+//      // No year can be found, so it must be the whole title
+//      // Now get the node id of hte film and display it
+//      $title = trim($form_state['values']['films']);
+//      
+//      // Now locate the film
+//      $query = db_select('node', 'n');
+//
+//      // Select rows that match the string
+//
+//      $query->fields('n', array('nid'));
+//      $query->condition('n.type','film','=');
+//      $query->condition('n.title', $title, '=');
+//      $query->range(0, 1);
+//
+//      $return = $query->execute(); 
+//      $node_id = '';
+//      foreach ($return as $row) {
+//        $node_id = $row->nid;
+//      }      
+    }
+//    
+    if (!empty($node_id)) {
+      // WE have located the person they are searching on
+      $form_state['redirect'] = 'node/' . $node_id;
+    } else {
+        $_SESSION['create_person'] = array(
+            'person_name' => $form_state['values']['person'],
+        );
+
+      drupal_set_message(t('The person requested is not in our system. Would you like to add them now.'),'warning');
+      $form_state['redirect'] = 'node/add/people';
+    }    
+  }
+}
+
+function film_general_person_to_film_search_submit($form, &$form_state) {
+
+  // Need to split the film and search for it again to see if it already exists
+  // if it does then we need to display it
+
+  $matches = array();
+
+  if ($form_state['clicked_button']['#id'] == 'edit-cancel') {
+    $node_id = $form_state['values']['node_id'];
+    $_SESSION['film_node_id'] = '';
+    drupal_goto('node/'.$node_id);
+  } else {
+    if (!empty($form_state['values']['person'])) {
+      preg_match('/\([0-9]+\)$/m',$form_state['values']['person'],$matches);
+      if ($matches) {
+        $person_node_id = substr($matches[0],1,-1);
+        if (!empty($person_node_id) && $person_node_id > 0) {
+          $film_node_id = $form_state['values']['node_id'];
+          $role = $form_state['values']['role'];
+//          $sub_role_id = $form_state['values']['subrole'];
+          $character = $form_state['values']['character'];
+//          $new_sub_role = $form_state['values']['new_subrole'];
+          _film_general_save_role($film_node_id,$person_node_id,$role,$character);
+        }
+      } else {
+        // we need to create a new node here and then save the id as the person.
+        global $user;
+        $film_node_id = $form_state['values']['node_id'];
+        $person_name = $form_state['values']['person'];
+        $role = $form_state['values']['role'];
+        $character = $form_state['values']['character'];
+        
+        $node = new stdClass();
+        $node->type = 'people';
+        $node->title = $person_name;
+        node_object_prepare($node); 
+        $node->language = LANGUAGE_NONE;
+        $node->uid = $user->uid;
+        $parts = explode(' ',$person_name,2);
+
+        $node->field_forename[$node->language][0]['value'] = $parts[0];
+        $node->field_surname[$node->language][0]['value'] = $parts[1];
+
+        $node = node_submit($node);
+        node_save($node);
+        
+        $person_node_id = $node->nid;
+        _film_general_save_role($film_node_id,$person_node_id,$role,$character);
+        // Use the following to transfer data to the new person screen
+//        $role_details = film_links_get_role_details(NULL,NULL,$form_state['values']['role']);
+//        $_SESSION['create_person'] = array(
+//            'film_node_id' => $form_state['values']['node_id'],
+//            'person_name' => $form_state['values']['person'],
+//            'role_id' => $role_details['rid'],
+//            'sub_role_id' => $form_state['values']['subrole'],            
+//            'character' => $form_state['values']['character'],            
+//        );
+//        drupal_set_message(t('The person requested is not in our system. Would you like to add it now.'),'warning');
+//        drupal_goto('node/add/people');
+
+      }    
+    }
+  }
+}
+
+function film_general_film_to_person_search_submit($form, &$form_state) {
+
+  // Need to split the film and search for it again to see if it already exists
+  // if it does then we need to display it
+//dpm($form_state);
+  $matches = array();
+
+  if ($form_state['clicked_button']['#id'] == 'edit-cancel') {
+    $node_id = $form_state['values']['person_node_id'];
+    drupal_goto('node/'.$node_id);
+  } else {
+    if (!empty($form_state['values']['person_node_id']) && !empty($form_state['values']['film_node_id'])) {
+      $film_node_id = $form_state['values']['film_node_id'];
+      $person_node_id = $form_state['values']['person_node_id'];
+      $role = $form_state['values']['role'];
+//      $sub_role_id = $form_state['values']['subrole'];
+      $character = $form_state['values']['character'];
+//      $new_sub_role = $form_state['values']['new_subrole'];
+      _film_general_save_role($film_node_id,$person_node_id,$role,$character);
+ 
+    } else {
+      // Need to create a new film to add to this person   *** SB ***
+      // Use the following to transfer data to the new film page
+      // Need to create a new node for the film
+      $film_node_id = $form_state['values']['film_node_id'];
+      $person_node_id = $form_state['values']['person_node_id'];   
+      $role = $form_state['values']['role'];
+      $character = $form_state['values']['character'];  
+      
+      $node = new stdClass();
+      $node->type = 'film';
+      $node->language = LANGUAGE_NONE;
+      node_object_prepare($node);
+      $node->title = $form_state['values']['film'];
+      unset($node->field_production_status[$node->language][0]['tid']);// = NULL;
+      unset($node->field_colour[$node->language][0]['value']);// = NULL;      
+      node_save($node);
+
+      $film_node_id = $node->nid;
+      _film_general_save_role($film_node_id,$person_node_id,$role,$character);      
+//      $role_details = film_links_get_role_details(NULL,NULL,$form_state['values']['role']);      
+//      $_SESSION['new_film_data'] = array(
+//          'person_node_id' => $form_state['values']['person_node_id'],
+//          'title' => $form_state['values']['film'],
+//          'role_id' => $role_details['rid'],
+//          'sub_role_id' => $form_state['values']['subrole'], 
+//          'character' => $form_state['values']['character'], 
+//      );
+//        drupal_set_message(t('The film requested is not in our system. Would you like to add it now.'),'warning');
+//        drupal_goto('node/add/film');
+    }    
+  }
+}
+
+
+
+function _film_general_film_autocomplete($string) {
+  $matches = array();
+ 
+  // Some fantasy DB table which holds cities
+  $query = db_select('node', 'n');
+ 
+  // Select rows that match the string
+
+  $query->fields('n', array('title','nid'));
+  $query->fields('y', array('field_year_value'));
+  $query->join('field_data_field_year','y','y.entity_id=n.nid');
+  $query->condition('n.type','film','=');
+  $query->condition('n.title', '%' . db_like($string) . '%', 'LIKE');
+  $query->range(0, 10);
+  $return = $query->execute();
+ 
+  // add matches to $matches  
+  foreach ($return as $row) {
+    $matches[$row->title. ' ('.$row->field_year_value.')['.$row->nid.']'] = check_plain($row->title). ' <b>(' . $row->field_year_value . ')</b>';
+  }
+ 
+  // return for JS
+  drupal_json_output($matches);
+}
+
+
+function _film_general_person_autocomplete($string) {
+  $matches = array();
+ 
+  // Some fantasy DB table which holds cities
+  $query = db_select('node', 'n');
+ 
+  // Select rows that match the string
+
+  $query->fields('n', array('title','nid'));
+  $query->condition('n.type','people','=');
+  $query->condition('n.title', '%' . db_like($string) . '%', 'LIKE');
+  $query->range(0, 10);
+  $return = $query->execute();
+ 
+  // add matches to $matches  
+  foreach ($return as $row) {
+    $matches[$row->title. ' ('.$row->nid.')'] = check_plain($row->title). ' (' . $row->nid . ')';
+  }
+ 
+  // return for JS
+  drupal_json_output($matches);
+}
+
+/******************************************************************************
+ *  Set up the blocks for the system
+ *
+/*****************************************************************************/
+
+/**
+ * Implements hook_block_info().
+ *
+ * This hook declares what blocks are provided by the module.
+ */
+function film_general_block_info() {
+  // This sample shows how to provide default settings. In this case we'll
+  // enable the block in the first sidebar and make it visible only on
+  // 'node/*' pages. See the hook_block_info() documentation for these.
+  $blocks['film_general_film_person_add'] = array(
+    'info' => t('Add people to a film'),
+  );  
+  
+  $blocks['film_general_film_search'] = array(
+    'info' => t('Search films'),
+  );
+   
+  $blocks['film_general_people_search'] = array(
+    'info' => t('Search people'),
+  );
+
+  return $blocks;
+}
+
+
+/**
+ * Implements hook_block_view().
+ *
+ * This hook generates the contents of the blocks themselves.
+ */
+function film_general_block_view($delta = '') {
+  //The $delta parameter tells us which block is being requested.
+  $block = array();
+  
+  switch ($delta) {
+    case 'film_general_film_search':
+      $block['subject'] = t('Search films');
+      $block['content'] = _film_general_block_contents($delta);
+      break;
+    
+    case 'film_general_film_person_add':
+      $block['subject'] = t('Add people to a film');
+      $block['content'] = _film_general_block_contents($delta);
+      break;  
+    
+    case 'film_general_people_search':
+      $block['subject'] = t('Search people');
+      $block['content'] = _film_general_block_contents($delta);
+      break;  
+
+  }
+  return $block;
+}
+
+/**
+ * A module-defined block content function.
+ */
+function _film_general_block_contents($which_block) {
+  switch ($which_block) {
+    case 'film_general_film_search':
+      // It is possible that a block not have any content, since it is
+      // probably dynamically constructed. In this case, Drupal will not display
+      // the block at all. This block will not be displayed.
+      
+      $film_form = drupal_get_form('film_general_film_search_form');
+          $message = 'Search form here instructions';
+      $output = array(
+        t('Split Instructions')  => array(
+          '#markup' => t($message),
+          ), 
+
+
+        'form_film' => array(
+          '#type' => 'item',
+          '#markup' => drupal_render($film_form),
+        ),       
+
+      );      
+      return $output;
+      break;
+    
+    case 'film_general_film_person_add':
+      // It is possible that a block not have any content, since it is
+      // probably dynamically constructed. In this case, Drupal will not display
+      // the block at all. This block will not be displayed.
+      $output = array();
+      //DPM($_SESSION['film_node_id']);
+      if (!empty($_GET['nid'])) {
+        $node_id = $_GET['nid'];
+        $_SESSION['film_node_id'] = $node_id;
+      } elseif (!empty($_SESSION['film_node_id'])) {
+        $node_id = $_SESSION['film_node_id'];
+      }
+      return film_general_manage_people_on_film($node_id);
+      break; 
+ 
+    case 'film_general_people_search':
+      // It is possible that a block not have any content, since it is
+      // probably dynamically constructed. In this case, Drupal will not display
+      // the block at all. This block will not be displayed.
+      
+      $film_form = drupal_get_form('film_general_person_search_form');
+          $message = 'Search form here instructions';
+      $output['Split Instructions']  = array(
+          '#markup' => t($message),
+          ); 
+
+      $output['form_film'] = array(
+          '#type' => 'item',
+          '#markup' => drupal_render($film_form),
+        );       
+     
+      return $output;
+      break;
+    
+    default:
+      dpm('tt');
+      return;
+  }
+}
+  
+  
+function film_general_manage_people_on_film($node_id) {
+  if (!empty($node_id)) {
+    $node = node_load($node_id);
+    if (!empty($node)) {
+      // Now we get the information about the file we just saved.
+      // the minimum that should be there is the title and possibly the year
+      $message = 'Adding people to '. $node->title.'.';
+      $output[] = array(
+        'film' => array(
+            '#markup' => t($message),
+            '#prefix' => '<h2>',
+            '#suffix' => '</h2>',
+        )  
+      );
+    }
+    $person_form = drupal_get_form('film_general_add_person_to_film_form',$node_id);
+    $message = 'Please enter the person you wish to add to this film.';
+    $message .= 'If the person is not already in our system we will ask you to fill in their details when you have completed this form.';
+    $output[] = array(
+      t('Split Instructions')  => array(
+        '#markup' => t($message),
+        ), 
+
+
+      'form_film' => array(
+        '#type' => 'item',
+        '#markup' => drupal_render($person_form),
+      ),       
+
+    );       
+
+    // Now show the details of people already added to the film
+
+//    $person_form = drupal_get_form('film_general_film_people_form',$node);        
+//
+//    $output['people'] = array (
+//        '#type' => 'item',
+//        '#markup' => drupal_render($person_form),            
+//    );
+  } else {
+
+    $message = 'Sorry but there was no film supplied to add people to.';
+    $output[] = array(
+      t('Split Instructions')  => array(
+        '#markup' => t($message),
+          '#prefix' => '<div>',
+          '#suffix' => '</div>',
+        ),   
+
+    );          
+  }
+  return $output;    
+}
+
+function film_general_manage_people_for_films($node_id) {
+  if (!empty($node_id)) {
+    $node = node_load($node_id);
+    if (!empty($node)) {
+      // Now we get the information about the file we just saved.
+      // the minimum that should be there is the title and possibly the year
+      $message = 'Please assign '. $node->title.' to films.';
+      $output[] = array(
+        'film' => array(
+            '#markup' => t($message),
+            '#prefix' => '<h2>',
+            '#suffix' => '</h2>',
+        )  
+      );
+    }
+    $person_form = drupal_get_form('film_general_add_person_to_film_form',$node_id);
+    $message = 'Please enter the person you wish to add to this film.';
+    $message .= 'If the person is not already in our system we will ask you to fill in their details when you have completed this form.';
+    $output[] = array(
+      t('Split Instructions')  => array(
+        '#markup' => t($message),
+        ), 
+
+
+      'form_film' => array(
+        '#type' => 'item',
+        '#markup' => drupal_render($person_form),
+      ),       
+
+    );       
+
+    // Now show the details of people already added to the film
+
+    $film_links_table = drupal_get_form('film_general_film_people_form',$node);        
+
+    $output['film_links_table'] = array (
+        '#type' => 'item',
+        '#markup' => drupal_render($film_links_table),            
+    );
+  } else {
+
+    $message = 'Sorry but there was no film supplied to add people to.';
+    $output[] = array(
+      t('Split Instructions')  => array(
+        '#markup' => t($message),
+          '#prefix' => '<div>',
+          '#suffix' => '</div>',
+        ),   
+
+    );          
+  }
+  return $output;    
+}
+
+// THis will allow the user to search for films and add them to the person.
+// Node-id is the ID of the person we are currently looking at.
+function film_general_manage_films_for_people($node_id) {
+  if (!empty($node_id)) {
+    $node = node_load($node_id);
+    if (!empty($node)) {
+      // Now we get the information about the file we just saved.
+      // the minimum that should be there is the title and possibly the year
+      $message = 'Film contributions for <em>'. $node->title.'</em>.';
+      $output[] = array(
+        'film' => array(
+            '#markup' => t($message),
+            '#prefix' => '<h2>',
+            '#suffix' => '</h2>',
+        )  
+      );
+    }
+    $person_form = drupal_get_form('film_general_add_film_to_person_form',$node_id);
+    $message = 'Please enter the film you wish to add for this person. ';
+    $message .= 'If the film is not already in our system we will ask you to fill in the details when you have completed this form.';
+    $output[] = array(
+      t('Split Instructions')  => array(
+        '#markup' => t($message),
+        ), 
+
+
+      'form_film' => array(
+        '#type' => 'item',
+        '#markup' => drupal_render($person_form),
+      ),       
+
+    );       
+
+    // Now show the details of people already added to the film
+
+    $person_form = drupal_get_form('film_general_people_film_form',$node);        
+
+    $output['people'] = array (
+        '#type' => 'item',
+        '#markup' => drupal_render($person_form),            
+    );
+    drupal_add_js(drupal_get_path('module', 'film_general') . '/js/general.js', 'file');
+
+  } else {
+
+    $message = 'Sorry but there was no film supplied to add people to.';
+    $output[] = array(
+      t('Split Instructions')  => array(
+        '#markup' => t($message),
+          '#prefix' => '<div>',
+          '#suffix' => '</div>',
+        ),   
+
+    );          
+  }
+  return $output;    
+}
+
+
+function film_general_person_node_validate( $form, &$form_state) {
+  $name = '';
+
+  $valid_year = FALSE;
+  $year = 0;
+  // Validate the date of birth year
+  if (!empty($form_state['values']['field_dob_year'][LANGUAGE_NONE][0]['name'])) {
+    $year = $form_state['values']['field_dob_year'][LANGUAGE_NONE][0]['name'];
+
+    // First of all parse the year to make sure it is in the right format
+    $matches = array();
+    preg_match('/^[0-9]{4}$/m',$year,$matches);
+    if (!empty($matches)) {
+      // Now check that the year is within the valid range
+      $year_now = date('Y');
+
+      if ($year > $year_now) {
+        form_set_error('[field_dob_year]', t('The year for date of birth must be before ' . $year_now));
+      } else {
+        $valid_year = TRUE;
+      }  
+    } else {
+      form_set_error('[field_dob_year]', t('The year must be have four digits.'));
+    }
+  }
+  
+  // Validate the day and month of birth year
+  if (!empty($form_state['values']['field_day_and_month'][LANGUAGE_NONE][0]['name'])) {
+    $day_month = $form_state['values']['field_day_and_month'][LANGUAGE_NONE][0]['name'];
+
+    // First of all parse the year to make sure it is in the right format
+    $matches = array();
+    preg_match('/^[0-9]{1,2}\s(january|february|march|april|may|june|july|august|september|october|november|december)$/',strtolower($day_month),$matches);
+
+    if ($matches) {
+      $date_error = FALSE;
+      $parts = explode(' ',$day_month);
+      $day = $parts[0];
+      $month = $parts[1];
+      
+      // Need to check that the day value is valid for the month
+      switch (strtolower($month)) {
+        case 'february':
+          $max_day = 28;
+          if ($valid_year && is_leap_year($year)) {
+            $max_day = 29;
+          }
+          if ($day > $max_day || $day <= 0) {
+            $date_error = TRUE;
+            form_set_error('[field_day_and_month]', t('The day must be between 1 and '.$max_day.' inclusive.'));
+          }          
+          break;
+        case 'april':
+        case 'june':
+        case 'september':
+        case 'november':
+          if ($day > 30 || $day <= 0) {
+            $date_error = TRUE;
+            form_set_error('[field_day_and_month]', t('The day must be between 1 and 30 inclusive.'));
+          }          
+          break;
+        case 'january':          
+        case 'march':
+        case 'may':          
+        case 'july':          
+        case 'august':
+        case 'october':
+        case 'december':
+          if ($day > 31 || $day <= 0) {
+            form_set_error('[field_day_and_month]', t('The day must be between 1 and 31 inclusive.'));
+            $date_error = TRUE;
+          }
+          break;       
+      }
+      
+      // Now format the date correctly if it is correct
+      if ( $date_error == FALSE) {
+        $day = sprintf('%02d',$day);
+        $month = ucfirst(strtolower($month));
+
+        $form_state['values']['field_day_and_month'][LANGUAGE_NONE][0]['name'] = $day . ' ' . $month;
+        $form_state['input']['field_day_and_month'][LANGUAGE_NONE] = $day . ' ' . $month;
+        $form_state['complete form']['field_day_and_month'][LANGUAGE_NONE]['#value'] = $day . ' ' . $month;
+      }
+    } else {
+      form_set_error('[field_day_and_month]', t('The date of birth needs to be a the day followed by the month i.e. 03 February.'));
+    }
+  }  
+  
+  if (!empty($form_state['input']['field_forename'][LANGUAGE_NONE][0]['value']))
+    $name = $form_state['input']['field_forename'][LANGUAGE_NONE][0]['value'];
+  
+  if (!empty($form_state['input']['field_surname'][LANGUAGE_NONE][0]['value'])) {
+    if (!empty($name)) $name .= ' ';
+    $name .= $form_state['input']['field_surname'][LANGUAGE_NONE][0]['value'];
+  }
+
+  $form_state['complete form']['title']['#default_value'] = t($name);
+  $form_state['complete form']['title']['#value'] = t($name);
+  $form_state['values']['title'] = t($name);
+//  $form_state['input']['title'] = $name;
+
+  $film_id = $form_state['input']['film_id'];
+  $role_id = $form_state['input']['role_id'];
+  $sub_role_id = $form_state['input']['sub_role_id'];
+  
+  $form_state['complete form']['role_id']['#value'] = $role_id;
+  $form_state['complete form']['sub_role_id']['#value'] = $sub_role_id;
+  $form_state['complete form']['film_id']['#value'] = $film_id;
+  
+//  $form_state['redirect'] = 'node/'.$film_id.'/person_add?film_id='.$film_id.'&type='.$person_type.'&name='.$name;
+
+}
+
+
+function is_leap_year($year)
+{
+	return ((($year % 4) == 0) && ((($year % 100) != 0) || (($year %400) == 0)));
+}
+function film_general_review_node_validate( $form, &$form_state) {
+
+}
+function film_general_article_node_validate( $form, &$form_state) {
+
+}
+function film_general_image_node_validate( $form, &$form_state) {
+  //dpm($form_state);
+}
+
+function film_general_person_node_submit($form, &$form_state) {
+
+  //$form_state['rebuild'] = TRUE;
+  
+  if (!empty($form_state['values']['film_id'])) {
+    $film_node_id = $form_state['values']['film_id'];
+    $person_node_id = $form_state['values']['nid'];  
+    $role_id = $form_state['values']['role_id'];
+    $sub_role_id = $form_state['values']['sub_role_id'];      
+    film_general_add_person_to_film($film_node_id,$person_node_id,$role_id,$sub_role_id);
+    $form_state['redirect'] = 'node/'.$film_node_id.'/people';
+  }
+}
+
+function film_general_review_node_submit($form, &$form_state) {
+  if (empty($form['nid']['#value']) && !empty($form_state['values']['field_link'][LANGUAGE_NONE][0]['target_id'])) {
+    $film_node_id = $form_state['values']['field_link'][LANGUAGE_NONE][0]['target_id'];
+    $form_state['redirect'] = 'node/'.$film_node_id.'/reviews';
+  }  
+}
+
+function film_general_image_node_submit($form, &$form_state) { 
+  if (empty($form['nid']['#value']) && !empty($form_state['values']['field_link'][LANGUAGE_NONE][0]['target_id'])) {
+    $film_node_id = $form_state['values']['field_link'][LANGUAGE_NONE][0]['target_id'];
+    $form_state['redirect'] = 'node/'.$film_node_id.'/pictures';
+  }
+}
+
+function film_general_article_node_submit($form, &$form_state) {
+  if (empty($form['nid']['#value']) && !empty($form_state['values']['field_link'][LANGUAGE_NONE][0]['target_id'])) {
+    $film_node_id = $form_state['values']['field_link'][LANGUAGE_NONE][0]['target_id'];
+    $form_state['redirect'] = 'node/'.$film_node_id.'/articles';
+  }  
+}
+
+
+function film_general_add_person_to_film($film_node_id,$person_node_id,$role_id,$character = NULL) {
+  
+//  if ($sub_role_id == '_none') {
+    $sub_role_id = NULL;
+//  }
+  
+  film_links_add($film_node_id,$person_node_id,$role_id,$sub_role_id,$character);
+//  $node_film = node_load($film_node_id);
+//  $field = 'field_' . $type;
+//
+//  if (empty($node_film->$field)) {
+//    $field = &$node_film->$field;            
+//    $field['und'][0] = array('target_id' => $person_node_id);            
+//  } 
+//  else {
+//    $field = &$node_film->$field;
+//    $field['und'][] = array('target_id' => $person_node_id);            
+//  }
+//
+//  node_save($node_film);
+//  //$form['redirect'] = 'search-form';
+}
+
+//
+//function film_general_node_view($node, $view_mode, $langcode) {
+//  
+//  $film_form = drupal_get_form('film_general_film_search_form');
+//  $film_form['#weight'] = 1;
+//  
+//  $node->content['data_collection_form'] = $film_form;
+//  dpm($node);
+//}
+//
+//function film_general_node_view_alter(&$build) {
+//  dpm($build);
+// // $build['#view_mode'] = 'teaser';
+////  $film_form = drupal_get_form('film_general_film_search_form');
+////  $build['test_form66'] = film_general_film_search_form();
+//}
+//
+// function film_general_ds_fields_info_alter(&$fields, $entity_type) {
+//   dpm($fields);
+//   if (isset($fields['title'])) {
+//    $fields['title']['title'] = t('My title');
+//    }
+// }
+// 
+//   function film_general_ds_pre_render_alter(&$layout_render_array, $context)  {
+//     dpm('jjj');
+//     dpm($layout_render_array);
+//   
+//  }
+
+function _film_general_save_role($film_node_id,$person_node_id,$role,
+    $character) {
+    
+//  $sub_role_id = FALSE;
+  $role_details = film_links_get_role_details(NULL,NULL,$role);
+  
+  if (!empty($role_details)) {
+    // We have found the role specified by the user
+    $role_id = $role_details['rid'];
+    film_general_add_person_to_film($film_node_id,$person_node_id,$role_id,$character);
+  } else {
+    // The role doesn't exist so we need to add it automatically and 
+    // the sub role if there is one.          
+    
+    $new_role_id = film_links_role_save($role,NULL,0);
+    if ($new_role_id <> FALSE) {
+      // The save worked. Now we can save the sub role
+      film_general_add_person_to_film($film_node_id,$person_node_id,$new_role_id,$character);
+    } else {
+      // Couldn't save the new role
+      $save_role = FALSE;
+    }
+  }
+}
+

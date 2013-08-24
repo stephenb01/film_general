@@ -1,0 +1,4 @@
+name = Film General
+description = Special functions film website
+package = Film
+core = 7.x

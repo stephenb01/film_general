@@ -6,7 +6,6 @@
  * This holds the specific functions for film_general website.
  */
 
-
 function film_general_menu() {
 
   $items = array();
@@ -343,7 +342,8 @@ function film_general_people_form($form, &$form_state, $node, $destination = NUL
 function film_general_film_people_form($form, &$form_state, $node, $destination = NULL) {
   global $user;
   $form = array();
-  $role = array(3);
+  $role = array("Actor");
+  $role = _film_general_convert_role($role);
   $output = film_links_get_links($node->nid,NULL,NULL,$role,TRUE);
 
 
@@ -351,7 +351,7 @@ function film_general_film_people_form($form, &$form_state, $node, $destination 
       '#markup' => drupal_render($output),
   );
    
-  $output = film_links_get_links(NULL,$node->nid,$role,NULL,TRUE);
+  $output = film_links_get_links($node->nid,NULL,$role,NULL,TRUE);
   // Need to check if we can add a delete button here.
  
   $form['film_links_actors'] = array(
@@ -1635,5 +1635,20 @@ function _film_general_save_role($film_node_id,$person_node_id,$role,
       $save_role = FALSE;
     }
   }
+}
+
+function _film_general_convert_role($role) {
+
+  $converted_roles = array();
+  if (!empty($role)) {
+    foreach ($role as $key => $role_name) {
+      $role_details = film_links_get_role_details( NULL, NULL, $role_name );
+      if (!empty($role_details)) {
+        $converted_roles[] = $role_details['rid'];
+      }
+    }
+  }
+    
+  return $converted_roles;
 }
 

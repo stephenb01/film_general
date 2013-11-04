@@ -39,7 +39,7 @@ Drupal.behaviors.sfilmRoleAutocomplete = {
         current_role = role;
         $.ajax({
             type: 'POST',
-            url: Drupal.settings.basePath +'film-link/subrole-search/autocomplete',
+            url: Drupal.settings.basePath +'js/film_links/subrole_search',
             dataType: 'json',
             success: ajaxSubRoleAutoCompleted,
             // Might want to use 'ui' instead of jQuery('#slider').

@@ -24,6 +24,40 @@ Drupal.behaviors.slfilm_hide_ref = {
             }
           });
         });
+        
+        $("input#edit-person").once('gg', function() {
+          $("input#edit-person").blur(function () {
+              $("input#edit-submit").focus();
+            var value = $(this).val();
+            var result = value.match(/\[\d+\]/);
+            //alert('ghgh');
+            if (result != null) {
+              //alert(value.substr(0,value.length - result[0].length ));
+              $(this).val(value.substr(0,value.length - result[0].length - 1));
+              var person_node_id = result[0].substr(1,result[0].length-2);
+
+              $('input[name=person_node_id]').val(person_node_id);
+
+            }
+          });
+        });  
+
+        $("input#edit-organisation").once('gg', function() {
+          $("input#edit-organisation").blur(function () {
+              $("input#edit-submit").focus();
+            var value = $(this).val();
+            var result = value.match(/\[\d+\]/);
+            //alert('ghgh');
+            if (result != null) {
+              //alert(value.substr(0,value.length - result[0].length ));
+              $(this).val(value.substr(0,value.length - result[0].length - 1));
+              var person_node_id = result[0].substr(1,result[0].length-2);
+
+              $('input[name=organisation_node_id]').val(person_node_id);
+
+            }
+          });
+        });  
   }
 
 };
@@ -43,13 +77,12 @@ Drupal.behaviors.sfilmRoleAutocomplete = {
             dataType: 'json',
             success: ajaxSubRoleAutoCompleted,
             // Might want to use 'ui' instead of jQuery('#slider').
-            data: 'role=' + role // $("input#edit-field-agency-autocomplete").val()
+            data: 'role=' + role + '&type=' + $("input[name=role_type]").val()
         });
       }
     });
     
     function ajaxSubRoleAutoCompleted(data) {
-      var option = '<option value="_none">--</option>';
       $.each(data,function(index,element) {
         if (index == 'role_details') {
           if (element == 1) {
@@ -57,17 +90,8 @@ Drupal.behaviors.sfilmRoleAutocomplete = {
           } else {
             $('.form-item-character').hide();
           }
-        } else {
-          option += '<option value="'+ index +'">'+ element +'</option>';          
         }
       });  
-      
-      $('#edit-subrole')
-      .find('option')
-      .remove()
-      .end()
-      .append(option)
-      .val('_none');
     }
   }
 }	

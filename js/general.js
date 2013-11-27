@@ -42,8 +42,8 @@ Drupal.behaviors.slfilm_hide_ref = {
           });
         });  
 
-        $("input#edit-organisation").once('gg', function() {
-          $("input#edit-organisation").blur(function () {
+        $("input#edit-organisations").once('gg', function() {
+          $("input#edit-organisations").blur(function () {
               $("input#edit-submit").focus();
             var value = $(this).val();
             var result = value.match(/\[\d+\]/);

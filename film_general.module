@@ -21,7 +21,7 @@ function film_general_menu() {
     'title' => 'People',
     'description' => 'Add people',
     'page callback' => 'film_general_add_page_callback',
-    'page arguments' => array(NODE_TYPE_PEOPLE,1),
+    'page arguments' => array(NODE_TYPE_PEOPLE,1,3),
     'type' => MENU_CALLBACK,
     'access callback' => 'film_general_add_access_check',
     'access arguments' => array(1,NODE_TYPE_PEOPLE),      
@@ -31,7 +31,7 @@ function film_general_menu() {
     'title' => t('Films'),
     'description' => t('Add films'),
     'page callback' => 'film_general_add_page_callback',
-    'page arguments' => array(NODE_TYPE_FILM,1),
+    'page arguments' => array(NODE_TYPE_FILM,1,3),
     'type' => MENU_CALLBACK,
     'access callback' => 'film_general_add_access_check',
     'access arguments' => array(1,NODE_TYPE_FILM),
@@ -332,11 +332,11 @@ function film_general_add_access_check($node = NULL,$calling_type = NULL) {
 // The $type is the content type we are adding to the node
 // So this chould be person or film or orgsanisaton. It shouldn't 
 // be the same type as the node
-function film_general_add_page_callback($type, $node = NULL) {
+function film_general_add_page_callback($type, $node = NULL,$role_type=NULL) {
 
   if (!empty($type) && !empty($node) && ($type == NODE_TYPE_FILM
       || $type == NODE_TYPE_PEOPLE || $type == NODE_TYPE_ORGANISATION)) {
-     return film_general_manage_add($node,$type);
+     return film_general_manage_add($node,$type,$role_type);
   } else {
     return;
   }
@@ -376,7 +376,7 @@ function film_general_people_form($form, &$form_state, $node, $destination = NUL
   return $form;
 }
 
-function film_general_list_links($form, &$form_state, $node, $type = NULL,$destination = NULL) {
+function film_general_list_links($form, &$form_state, $node, $type = NULL,$role_type = NULL, $destination = NULL) {
   global $user;
   $form = array();
   // If we are lookng at organisations then we need to display the results differently.
@@ -395,21 +395,23 @@ function film_general_list_links($form, &$form_state, $node, $type = NULL,$desti
     $output = film_links_get_links($node,NULL,$role,array('show_role' => TRUE,'show_edit' => TRUE, 'type' => array($node->type,$type)));
 
 
-    if (!empty($output) && $output['table']['#markup'] != '<div></div>') {
-      $form['film_links'] = array(
-          '#markup' => '<div class="crew"><h3>Crew</h3>' . drupal_render($output) . '</div>',
-      );
+    if ($role_type == 'crew') {
+      if (!empty($output) && $output['table']['#markup'] != '<div></div>') {
+        $form['film_links'] = array(
+            '#markup' => '<div class="crew"><h3>Crew</h3>' . drupal_render($output) . '</div>',
+        );
+      }
     }
-
      $output = film_links_get_links($node,$role,NULL,array('show_role' => FALSE,'show_edit' => TRUE, 'type' => array($node->type,$type)));
 
     // Need to check if we can add a delete button here.
-
-    if (!empty($output) && $output['table']['#markup'] != '<div></div>') {
-      $form['film_links_actors'] = array(
-          '#markup' => '<div class="cast"><h3>Cast</h3>' . drupal_render($output) . '</div>',
-      );    
-    }    
+    if ($role_type == 'cast') {
+      if (!empty($output) && $output['table']['#markup'] != '<div></div>') {
+        $form['film_links_actors'] = array(
+            '#markup' => '<div class="cast"><h3>Cast</h3>' . drupal_render($output) . '</div>',
+        );    
+      } 
+    }
   }
 
 
@@ -573,7 +575,7 @@ function film_general_person_search_form() {
 }
 
 
-function film_general_add_form_people($form, &$form_state,$node = NULL, $destination = NULL) {
+function film_general_add_form_people($form, &$form_state,$node = NULL, $role_type = NULL, $destination = NULL) {
 
   $form = array();
   
@@ -595,21 +597,30 @@ function film_general_add_form_people($form, &$form_state,$node = NULL, $destina
   } else {
     $role_autocompelte = 'js/film_links/role_search';    
   }
-  $form['role'] = array(
-      '#title' => t('Role'),
-      '#type' => 'textfield',
-      '#required' => TRUE, 
-      '#autocomplete_path' => $role_autocompelte ,
-  );
   
+  if ($role_type == 'cast') {  
+    $form['role'] = array(
+        '#type' => 'hidden',
+        '#value' =>  _film_links_get_character_role(),
+    );      
+  }  else {
+    $form['role'] = array(
+        '#title' => t('Role'),
+        '#type' => 'textfield',
+        '#required' => TRUE, 
+        '#autocomplete_path' => $role_autocompelte ,
+    );    
+  }
 
-  $form['character'] = array(
-      '#title' => t('Character'),
-      '#type' => 'textfield',
-      '#size' => 60,
-      '#maxlength' => 255,
-  );
-
+  
+  if ($role_type == 'cast') {
+    $form['character'] = array(
+        '#title' => t('Character'),
+        '#type' => 'textfield',
+        '#size' => 60,
+        '#maxlength' => 255,
+    );
+  }
  
   $form['node_id'] = array(
     '#type' => 'hidden',
@@ -641,7 +652,7 @@ function film_general_add_form_people($form, &$form_state,$node = NULL, $destina
   return $form;
 }
 
-function film_general_add_form_film($form, &$form_state,$node = NULL, $destination = NULL) {
+function film_general_add_form_film($form, &$form_state,$node = NULL, $role_type = NULL,$destination = NULL) {
   $form = array();
 
   $message =  'Please enter the film you wish to add for this person. If the film is not already in our system we will ask you to fill in the details when you have completed this form.';
@@ -663,21 +674,30 @@ function film_general_add_form_film($form, &$form_state,$node = NULL, $destinati
   } else {
     $role_autocompelte = 'js/film_links/role_search';    
   }
+
+  if ($role_type == 'cast') {  
+    $form['role'] = array(
+        '#type' => 'hidden',
+        '#value' =>  _film_links_get_character_role(),
+    );      
+  }  else {
+    $form['role'] = array(
+        '#title' => t('Role'),
+        '#type' => 'textfield',
+        '#required' => TRUE, 
+        '#autocomplete_path' => $role_autocompelte ,
+    );
+  }
   
-  $form['role'] = array(
-      '#title' => t('Role'),
-      '#type' => 'textfield',
-      '#required' => TRUE, 
-      '#autocomplete_path' => $role_autocompelte ,
-  );
+  if ($role_type == 'cast') {  
+    $form['character'] = array(
+        '#title' => t('Character'),
+        '#type' => 'textfield',
+        '#size' => 60,
+        '#maxlength' => 255,
+    );
+  }
   
-  $form['character'] = array(
-      '#title' => t('Character'),
-      '#type' => 'textfield',
-      '#size' => 60,
-      '#maxlength' => 255,
-  );
- 
   $form['node_id'] = array(
     '#type' => 'hidden',
     '#value' => $node->nid,
@@ -726,7 +746,7 @@ function film_general_add_form_organisation($form, &$form_state,$node = NULL, $d
    );
   
   $form['role'] = array(
-      '#title' => t('Role'),
+      '#title' => t('Position'),
       '#type' => 'textfield',
       '#required' => TRUE, 
       '#autocomplete_path' => 'js/film_general/organisation_role',
@@ -1036,9 +1056,8 @@ function film_general_add_form_people_submit($form, &$form_state) {
         $person_node_id = $form_state['values']['person_node_id'];
         $node_id = $form_state['values']['node_id'];
         $role = $form_state['values']['role'];
-        $character = $form_state['values']['character'];
+        $character = !empty($form_state['values']['character'])?$form_state['values']['character']:'';
         $role_details = film_links_get_role_details(NULL,NODE_TYPE_PEOPLE,$role);
-        dpm($role_details);
         if (empty($role_details['rid'])) {
           $rid = film_links_role_save($role,NODE_TYPE_PEOPLE,0);
         } else {
@@ -1052,7 +1071,7 @@ function film_general_add_form_people_submit($form, &$form_state) {
         $film_node_id = $form_state['values']['node_id'];
         $person_name = $form_state['values']['person'];
         $role = $form_state['values']['role'];
-        $character = $form_state['values']['character'];
+        $character = !empty($form_state['values']['character'])?$form_state['values']['character']:'';
         
         $node = new stdClass();
         $node->type = NODE_TYPE_PEOPLE;
@@ -1098,7 +1117,7 @@ function film_general_add_form_film_submit($form, &$form_state) {
       $person_node_id = $form_state['values']['node_id'];
       $role = $form_state['values']['role'];
 //      $sub_role_id = $form_state['values']['subrole'];
-      $character = $form_state['values']['character'];
+      $character = !empty($form_state['values']['character'])?$form_state['values']['character']:'';
 //      $new_sub_role = $form_state['values']['new_subrole'];
         $role_details = film_links_get_role_details(NULL,NODE_TYPE_FILM,$role);
         if (empty($role_details['rid'])) {
@@ -1115,7 +1134,7 @@ function film_general_add_form_film_submit($form, &$form_state) {
       $film_node_id = $form_state['values']['film_node_id'];
       $person_node_id = $form_state['values']['node_id'];   
       $role = $form_state['values']['role'];
-      $character = $form_state['values']['character'];  
+      $character = !empty($form_state['values']['character'])?$form_state['values']['character']:'';  
       
       $node = new stdClass();
       $node->type = NODE_TYPE_FILM;
@@ -1164,7 +1183,7 @@ function film_general_add_form_organisation_submit($form, &$form_state) {
         } else {
           $rid = $role_details['rid'];
         }
-      _film_general_save_role($organisation_node_id,$node_id,$role_details['rid'],NULL);
+      _film_general_save_role($organisation_node_id,$node_id,$rid,NULL);
 
     } else {
       // Need to create a new organisation 
@@ -1204,8 +1223,8 @@ function _film_general_film_autocomplete($string) {
   // Select rows that match the string
 
   $query->fields('n', array('title','nid'));
-  $query->fields('y', array('field_year_value'));
-  $query->leftJoin('field_data_field_year','y','y.entity_id=n.nid');
+  //$query->fields('y', array('field_year_value'));
+  //$query->leftJoin('field_data_field_year','y','y.entity_id=n.nid');
   $query->condition('n.type',NODE_TYPE_FILM,'=');
   $query->condition('n.title', '%' . db_like($string) . '%', 'LIKE');
   $query->range(0, 10);
@@ -1213,7 +1232,7 @@ function _film_general_film_autocomplete($string) {
  
   // add matches to $matches  
   foreach ($return as $row) {
-    $matches[$row->title. ' ('.$row->field_year_value.')['.$row->nid.']'] = check_plain($row->title). ' <b>(' . $row->field_year_value . ')</b>';
+    $matches[$row->title. '['.$row->nid.']'] = check_plain($row->title);
   }
  
   // return for JS
@@ -1424,7 +1443,9 @@ function _film_general_block_contents($which_block) {
 // The $type is the content type we are adding to the node
 // So this chould be person or film or orgsanisaton. It shouldn't 
 // be the same type as the node
-function film_general_manage_add($node, $type) {
+// Role_type allows us to distinguish between crew and cast so we can decided if
+// we need to display the charachter box
+function film_general_manage_add($node, $type,$role_type = NULL) {
   $message = '';
   $form = array();
   $film_links_table = array();
@@ -1434,15 +1455,15 @@ function film_general_manage_add($node, $type) {
     switch ($type) {
       case NODE_TYPE_FILM:
         $message = 'Film contributions for '. l($node->title,'node/' . $node->nid) . '.';
-        $form = drupal_get_form('film_general_add_form_film',$node);
+        $form = drupal_get_form('film_general_add_form_film',$node,$role_type);
         // Might need to alter this function
-        $film_links_table = drupal_get_form('film_general_list_links',$node,$type); 
+        $film_links_table = drupal_get_form('film_general_list_links',$node,$type,$role_type); 
         break;
       case NODE_TYPE_PEOPLE:
         $message = 'Edit production credits for '. l($node->title,'node/' . $node->nid) . '.';
-        $form = drupal_get_form('film_general_add_form_people',$node);
+        $form = drupal_get_form('film_general_add_form_people',$node,$role_type);
             // Now show the details of people already added to the film
-        $film_links_table = drupal_get_form('film_general_list_links',$node,$type);        
+        $film_links_table = drupal_get_form('film_general_list_links',$node,$type,$role_type);        
 
         break;
       case NODE_TYPE_ORGANISATION:
@@ -1903,19 +1924,37 @@ function film_general_permission() {
   return $perms;
 }
 
-function film_general_show_add_people_link($nid) {
+function film_general_show_add_people_link($nid,$role_type = NULL) {
   $link = '';
+  $buttons = variable_get('film_general_buttons', array(
+    'people_edit_crew' => '',
+    'people_edit_cast' => '',
+    'film_edit_crew' => '',
+    'film_edit_cast' => '',
+    'organisation_edit' => '',    
+  ));
+  $title = $buttons['people_edit_' . $role_type];
+  $title = !empty($title) ?$title: 'Edit ' . $role_type;
   if (user_access('add people to film')) {
-    $link = l(t('Edit'),'node/' . $nid . '/people');
+    $link = l(t($title),'node/' . $nid . '/people/' . $role_type);
   }
   
   return $link;
 }
 
-function film_general_show_add_film_link($nid) {
+function film_general_show_add_film_link($nid,$role_type = NULL) {
   $link = '';
+  $buttons = variable_get('film_general_buttons', array(
+    'people_edit_crew' => '',
+    'people_edit_cast' => '',
+    'film_edit_crew' => '',
+    'film_edit_cast' => '',
+    'organisation_edit' => '',    
+  )); 
+  $title = $buttons['film_edit_' . $role_type];
+  $title = !empty($title) ?$title: 'Edit ' . $role_type;
   if (user_access('add films to people')) {
-    $link = l(t('Edit'),'node/' . $nid . '/films');
+    $link = l(t($title),'node/' . $nid . '/films/' . $role_type);
   }
   
   return $link;
@@ -1923,8 +1962,17 @@ function film_general_show_add_film_link($nid) {
 
 function film_general_show_add_organisation_link($nid) {
   $link = '';
+  $buttons = variable_get('film_general_buttons', array(
+    'people_edit_crew' => '',
+    'people_edit_cast' => '',
+    'film_edit_crew' => '',
+    'film_edit_cast' => '',
+    'organisation_edit' => '',    
+  )); 
+  $title = $buttons['organisation_edit'];
+  $title = !empty($title) ?$title: 'Edit ' . $role_type;  
   if (user_access('add films to people')) {
-    $link = l(t('Edit'),'node/' . $nid . '/organisations');
+    $link = l(t($title),'node/' . $nid . '/organisations');
   }
   
   return $link;

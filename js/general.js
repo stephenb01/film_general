@@ -42,8 +42,8 @@ Drupal.behaviors.slfilm_hide_ref = {
           });
         });  
 
-        $("input#edit-organisation").once('gg', function() {
-          $("input#edit-organisation").blur(function () {
+        $("input#edit-organisations").once('gg', function() {
+          $("input#edit-organisations").blur(function () {
               $("input#edit-submit").focus();
             var value = $(this).val();
             var result = value.match(/\[\d+\]/);
@@ -62,54 +62,21 @@ Drupal.behaviors.slfilm_hide_ref = {
 
 };
 
-Drupal.behaviors.sfilmRoleAutocomplete = {
-  attach: function (context,settings) {
-    var current_role = "";
-    $("input[id=edit-role]").blur(function () {
-      var role = $(this).val();
-      // We only want to update the subrole selection list if the main
-      // role has been changed.
-      if (role !== current_role) {
-        current_role = role;
-        $.ajax({
-            type: 'POST',
-            url: Drupal.settings.basePath +'js/film_links/subrole_search',
-            dataType: 'json',
-            success: ajaxSubRoleAutoCompleted,
-            // Might want to use 'ui' instead of jQuery('#slider').
-            data: 'role=' + role + '&type=' + $("input[name=role_type]").val()
-        });
-      }
-    });
-    
-    function ajaxSubRoleAutoCompleted(data) {
-      $.each(data,function(index,element) {
-        if (index == 'role_details') {
-          if (element == 1) {
-            $('.form-item-character').show();
-          } else {
-            $('.form-item-character').hide();
-          }
-        }
-      });  
-    }
-  }
-}	
 
-
-Drupal.behaviors.sfilmRoles = {
-  attach: function (context,settings) {
-    $('div.form-item-character').hide();
-    $('div.form-item-new-subrole').hide();
-    
-    $('#edit-subrole').change(function() {
-      var option = $(this).val();
-      if (option == '_other') {
-        $('div.form-item-new-subrole').show();
-      } else {
-        $('div.form-item-new-subrole').hide();
-      }
-    });
-  }
-}
+//
+//Drupal.behaviors.sfilmRoles = {
+//  attach: function (context,settings) {
+//    $('div.form-item-character').hide();
+//    $('div.form-item-new-subrole').hide();
+//    
+//    $('#edit-subrole').change(function() {
+//      var option = $(this).val();
+//      if (option == '_other') {
+//        $('div.form-item-new-subrole').show();
+//      } else {
+//        $('div.form-item-new-subrole').hide();
+//      }
+//    });
+//  }
+//}
 })(jQuery);

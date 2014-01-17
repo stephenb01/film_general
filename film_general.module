@@ -739,6 +739,20 @@ function film_general_add_form_film($form, &$form_state,$node = NULL, $role_type
         '#autocomplete_path' => $role_autocompelte ,
     );
   }
+
+  if ($role_type == 'cast') {  
+    $form['role'] = array(
+        '#type' => 'hidden',
+        '#value' =>  _film_links_get_character_role(),
+    );      
+  }  else {
+    $form['role'] = array(
+        '#title' => t('Role'),
+        '#type' => 'textfield',
+        '#required' => TRUE, 
+        '#autocomplete_path' => $role_autocompelte ,
+    );
+  }
   
   if ($role_type == 'cast') {  
     $form['character'] = array(
